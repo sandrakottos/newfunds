@@ -133,12 +133,19 @@ convertBtn.addEventListener('click', async () => {
             body: formData
         });
         
+        // Try to parse JSON response safely
+        const contentType = response.headers.get('content-type') || '';
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to process file');
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to process file');
+            } else {
+                const text = await response.text();
+                throw new Error(text || 'Failed to process file');
+            }
         }
         
-        const data = await response.json();
+        const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
         availableColumns = data.columns;
         
         loading.style.display = 'none';
@@ -255,12 +262,18 @@ proceedBtn.addEventListener('click', async () => {
             body: formData
         });
         
+        const contentType = response.headers.get('content-type') || '';
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Conversion failed');
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Conversion failed');
+            } else {
+                const text = await response.text();
+                throw new Error(text || 'Conversion failed');
+            }
         }
         
-        const data = await response.json();
+        const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
         convertedCsvData = data.csv_data;
         convertedJsonData = data.json_data;
         
