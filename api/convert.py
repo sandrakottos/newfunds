@@ -119,12 +119,12 @@ class handler(BaseHTTPRequestHandler):
     def clean_dataframe(self, df):
         """
         Clean the dataframe by removing:
-        1. Completely empty rows at the end
-        2. Rows that appear to be disclaimers or metadata
-        3. Rows after benchmark indices (optional stop point)
+        1. Completely empty rows
+        2. Rows that are disclaimers or metadata
+        3. Separator rows (all dashes, equals, etc.)
+        Keep everything else - no hardcoded names!
         """
         rows_to_keep = []
-        include_next_row = False
         
         for idx, row in df.iterrows():
             # Convert row to string and check if it's mostly empty
@@ -134,10 +134,9 @@ class handler(BaseHTTPRequestHandler):
             if not row_str:
                 continue
             
-            # If previous row was benchmark header, include this row then stop
-            if include_next_row:
-                rows_to_keep.append(idx)
-                break
+            # Skip separator rows (all dashes, equals, underscores, etc.)
+            if re.match(r'^[-=_\s]+$', row_str):
+                continue
             
             # Check for common disclaimer patterns
             disclaimer_patterns = [
@@ -159,13 +158,7 @@ class handler(BaseHTTPRequestHandler):
             if is_disclaimer:
                 continue
             
-            # Check if this is a benchmark index header row
-            if 'benchmark' in row_str.lower() and 'index' in row_str.lower():
-                rows_to_keep.append(idx)
-                # Include the next row (actual benchmark data) then stop
-                include_next_row = True
-                continue
-            
+            # Keep everything else - no special cases!
             rows_to_keep.append(idx)
         
         # Return cleaned dataframe
