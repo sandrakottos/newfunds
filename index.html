@@ -3,127 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel to CSV/JSON Converter</title>
+    <title>Excel Converter | CSV & JSON Export</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📊 Excel to CSV/JSON Converter</h1>
-            <p>Upload your Excel file and download clean data in CSV or JSON format</p>
+            <h1>Excel Converter</h1>
+            <p>Professional data extraction and export</p>
         </header>
 
         <main>
             <div class="upload-section">
                 <div class="upload-area" id="uploadArea">
-                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <polyline points="17 8 12 3 7 8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <line x1="12" y1="3" x2="12" y2="15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5m0 0L7 8m5-5v12"/>
                     </svg>
-                    <h2>Drop your Excel file here</h2>
-                    <p>or click to browse</p>
+                    <h2>Upload Excel File</h2>
+                    <p>Drag and drop file here or click to browse</p>
                     <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
-                    <button class="browse-btn" id="browseBtn">Browse Files</button>
+                    <button class="btn-primary" id="browseBtn">Browse Files</button>
+                    <span class="file-types">Supported: .xlsx, .xls</span>
                 </div>
 
                 <div class="file-info" id="fileInfo" style="display: none;">
                     <div class="file-details">
-                        <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" stroke-width="2"/>
-                            <polyline points="13 2 13 9 20 9" stroke-width="2"/>
-                        </svg>
-                        <div>
+                        <div class="file-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                <polyline points="13 2 13 9 20 9"/>
+                            </svg>
+                        </div>
+                        <div class="file-meta">
                             <p class="file-name" id="fileName"></p>
                             <p class="file-size" id="fileSize"></p>
                         </div>
-                        <button class="remove-btn" id="removeBtn">✕</button>
+                        <button class="btn-icon" id="removeBtn" title="Remove file">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
                     </div>
-                    <button class="convert-btn" id="convertBtn">Process File</button>
+                    <button class="btn-primary" id="convertBtn">Process File</button>
                 </div>
             </div>
 
             <div class="loading" id="loading" style="display: none;">
                 <div class="spinner"></div>
-                <p>Processing your file...</p>
+                <p>Processing...</p>
             </div>
 
             <div class="column-selection" id="columnSelection" style="display: none;">
                 <div class="selection-header">
-                    <h2>Select Columns to Include</h2>
-                    <p>Choose which columns you want in your CSV file</p>
+                    <h2>Column Selection</h2>
+                    <p>Select the columns to include in your export</p>
                     <div class="selection-controls">
-                        <button class="control-btn" id="selectAllBtn">✓ Select All</button>
-                        <button class="control-btn" id="deselectAllBtn">✕ Deselect All</button>
+                        <button class="btn-secondary" id="selectAllBtn">Select All</button>
+                        <button class="btn-secondary" id="deselectAllBtn">Deselect All</button>
                     </div>
                 </div>
                 
-                <div class="columns-grid" id="columnsGrid">
-                    <!-- Column checkboxes will be inserted here -->
-                </div>
+                <div class="columns-grid" id="columnsGrid"></div>
                 
                 <div class="selection-footer">
-                    <p id="selectedCount">All columns selected</p>
-                    <button class="convert-btn" id="proceedBtn">Generate Files</button>
+                    <p id="selectedCount" class="count-text">All columns selected</p>
+                    <button class="btn-primary" id="proceedBtn">Generate Export</button>
                 </div>
             </div>
 
             <div class="result" id="result" style="display: none;">
-                <div class="success-message">
-                    <svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <polyline points="22 4 12 14.01 9 11.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <div class="result-header">
+                    <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
                     </svg>
-                    <h3>Conversion Complete!</h3>
+                    <h3>Export Ready</h3>
                     <p id="resultMessage"></p>
                 </div>
-                <div class="download-section">
-                    <p class="download-label">Choose your download format:</p>
-                    <div class="download-buttons">
-                        <button class="download-btn csv-btn" id="downloadCsvBtn">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-width="2"/>
-                                <polyline points="14 2 14 8 20 8" stroke-width="2"/>
-                                <line x1="16" y1="13" x2="8" y2="13" stroke-width="2"/>
-                                <line x1="16" y1="17" x2="8" y2="17" stroke-width="2"/>
-                                <polyline points="10 9 9 9 8 9" stroke-width="2"/>
+                <div class="export-section">
+                    <p class="export-label">Select export format:</p>
+                    <div class="export-buttons">
+                        <button class="btn-export" id="downloadCsvBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
                             </svg>
-                            Download CSV
+                            <span>Download CSV</span>
                         </button>
-                        <button class="download-btn json-btn" id="downloadJsonBtn">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-width="2"/>
-                                <polyline points="14 2 14 8 20 8" stroke-width="2"/>
-                                <path d="M10 12a2 2 0 0 0-2 2v2a2 2 0 0 1-2 2" stroke-width="2"/>
-                                <path d="M14 12a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2" stroke-width="2"/>
+                        <button class="btn-export" id="downloadJsonBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <path d="M10 12a2 2 0 0 0-2 2v2a2 2 0 0 1-2 2M14 12a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2"/>
                             </svg>
-                            Download JSON
+                            <span>Download JSON</span>
                         </button>
                     </div>
                 </div>
-                <div class="action-buttons">
-                    <button class="new-file-btn" id="newFileBtn">Convert Another File</button>
-                </div>
+                <button class="btn-secondary btn-block" id="newFileBtn">Process Another File</button>
             </div>
 
             <div class="error" id="error" style="display: none;">
-                <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <circle cx="12" cy="12" r="10" stroke-width="2"/>
-                    <line x1="12" y1="8" x2="12" y2="12" stroke-width="2" stroke-linecap="round"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16" stroke-width="2" stroke-linecap="round"/>
+                <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
-                <h3>Conversion Failed</h3>
+                <h3>Processing Error</h3>
                 <p id="errorMessage"></p>
-                <button class="retry-btn" id="retryBtn">Try Again</button>
+                <button class="btn-secondary" id="retryBtn">Try Again</button>
             </div>
         </main>
-
-        <footer>
-            <p>Automatically removes disclaimers and keeps only your data</p>
-        </footer>
     </div>
 
     <script src="script.js"></script>
 </body>
 </html>
-
