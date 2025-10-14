@@ -124,6 +124,7 @@ class handler(BaseHTTPRequestHandler):
         3. Rows after benchmark indices (optional stop point)
         """
         rows_to_keep = []
+        include_next_row = False
         
         for idx, row in df.iterrows():
             # Convert row to string and check if it's mostly empty
@@ -132,6 +133,11 @@ class handler(BaseHTTPRequestHandler):
             # Skip completely empty rows
             if not row_str:
                 continue
+            
+            # If previous row was benchmark header, include this row then stop
+            if include_next_row:
+                rows_to_keep.append(idx)
+                break
             
             # Check for common disclaimer patterns
             disclaimer_patterns = [
@@ -153,11 +159,12 @@ class handler(BaseHTTPRequestHandler):
             if is_disclaimer:
                 continue
             
-            # Check if this is a benchmark index row (optional end marker)
+            # Check if this is a benchmark index header row
             if 'benchmark' in row_str.lower() and 'index' in row_str.lower():
                 rows_to_keep.append(idx)
-                # Stop here - everything after benchmark is usually metadata
-                break
+                # Include the next row (actual benchmark data) then stop
+                include_next_row = True
+                continue
             
             rows_to_keep.append(idx)
         
