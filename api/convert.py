@@ -3,33 +3,49 @@ import pandas as pd
 import io
 import json
 import re
+import cgi
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            # Parse the multipart form data
+            # Parse multipart form data using cgi
             content_type = self.headers.get('Content-Type', '')
             
             if 'multipart/form-data' not in content_type:
                 self.send_error_response(400, 'Invalid content type')
                 return
             
-            # Extract boundary
-            boundary = content_type.split('boundary=')[1].encode()
-            
             # Read the body
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             
-            # Parse multipart data
-            parsed_data = self.parse_multipart(body, boundary)
+            # Parse using cgi.FieldStorage
+            environ = {
+                'REQUEST_METHOD': 'POST',
+                'CONTENT_TYPE': content_type,
+                'CONTENT_LENGTH': str(content_length),
+            }
             
-            if not parsed_data['file']:
+            form = cgi.FieldStorage(
+                fp=io.BytesIO(body),
+                headers=self.headers,
+                environ=environ
+            )
+            
+            # Extract file
+            if 'file' not in form:
                 self.send_error_response(400, 'No file uploaded')
                 return
             
-            file_data = parsed_data['file']
-            action = parsed_data.get('action', 'convert')
+            file_item = form['file']
+            if not file_item.file:
+                self.send_error_response(400, 'No file uploaded')
+                return
+            
+            file_data = file_item.file.read()
+            
+            # Extract action
+            action = form.getvalue('action', 'convert')
             
             # Read Excel file
             try:
@@ -55,7 +71,7 @@ class handler(BaseHTTPRequestHandler):
                 }
             else:
                 # Convert with selected columns
-                selected_columns_json = parsed_data.get('columns', '')
+                selected_columns_json = form.getvalue('columns', '')
                 
                 if selected_columns_json:
                     try:
@@ -72,7 +88,6 @@ class handler(BaseHTTPRequestHandler):
                 csv_data = csv_buffer.getvalue()
                 
                 # Convert to JSON
-                # Using orient='records' to create array of objects
                 json_data = df_cleaned.to_json(orient='records', indent=2, date_format='iso')
                 
                 response = {
@@ -100,46 +115,6 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
-    
-    def parse_multipart(self, body, boundary):
-        """Parse multipart form data to extract file content and form fields"""
-        result = {'file': None}
-        parts = body.split(b'--' + boundary)
-        
-        for part in parts:
-            if not part or part == b'--\r\n' or part == b'--':
-                continue
-                
-            # Check if this part contains a file
-            if b'Content-Disposition' in part:
-                # Extract field name
-                disposition_line = part.split(b'\r\n')[0]
-                
-                if b'filename=' in disposition_line:
-                    # This is a file upload
-                    file_start = part.find(b'\r\n\r\n')
-                    if file_start != -1:
-                        file_data = part[file_start + 4:]
-                        # Remove trailing CRLF if present
-                        if file_data.endswith(b'\r\n'):
-                            file_data = file_data[:-2]
-                        result['file'] = file_data
-                else:
-                    # This is a regular form field
-                    # Extract field name
-                    name_match = re.search(b'name="([^"]+)"', disposition_line)
-                    if name_match:
-                        field_name = name_match.group(1).decode('utf-8')
-                        
-                        # Extract field value
-                        value_start = part.find(b'\r\n\r\n')
-                        if value_start != -1:
-                            field_value = part[value_start + 4:]
-                            if field_value.endswith(b'\r\n'):
-                                field_value = field_value[:-2]
-                            result[field_name] = field_value.decode('utf-8')
-        
-        return result
     
     def clean_dataframe(self, df):
         """
