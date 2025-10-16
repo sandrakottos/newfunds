@@ -168,6 +168,21 @@ convertBtn.addEventListener('click', async () => {
 function showRowPreview(rows) {
     previewTableBody.innerHTML = '';
     
+    // Get max column count from all rows
+    const maxCols = Math.max(...rows.map(row => row.length));
+    
+    // Update table header with actual column count
+    const previewTable = document.getElementById('previewTable');
+    const thead = previewTable.querySelector('thead tr');
+    thead.innerHTML = '<th></th><th>Row #</th>'; // Reset header
+    
+    // Add column headers dynamically
+    for (let i = 0; i < maxCols; i++) {
+        const th = document.createElement('th');
+        th.textContent = `Column ${String.fromCharCode(65 + i)}`; // A, B, C, etc.
+        thead.appendChild(th);
+    }
+    
     rows.forEach((row, rowIndex) => {
         const tr = document.createElement('tr');
         tr.className = 'preview-row';
@@ -195,8 +210,8 @@ function showRowPreview(rows) {
         rowNumCell.textContent = rowIndex;
         tr.appendChild(rowNumCell);
         
-        // Data cells (show first 5 columns)
-        for (let i = 0; i < 5; i++) {
+        // Data cells (show ALL columns)
+        for (let i = 0; i < maxCols; i++) {
             const td = document.createElement('td');
             const cellValue = row[i] || '';
             // Truncate long values
