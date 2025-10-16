@@ -4,11 +4,12 @@ Convert Excel files to clean CSV or JSON format. Automatically removes disclaime
 
 ## Features
 
-- 📤 Drag & drop or browse to upload Excel files
-- ✅ Select which columns to include
-- 🧹 Auto-removes disclaimers and empty rows
-- 💾 Download as CSV or JSON
-- 📱 Mobile responsive
+- Drag & drop or browse to upload Excel files
+- Select which columns to include
+- Auto-removes disclaimers and empty rows
+- Download as CSV or JSON
+- Professional, clean interface
+- Mobile responsive
 
 ## Quick Start
 

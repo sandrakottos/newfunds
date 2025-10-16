@@ -2,6 +2,7 @@ let selectedFile = null;
 let convertedCsvData = null;
 let convertedJsonData = null;
 let availableColumns = [];
+let selectedHeaderRow = 0;
 
 // Get DOM elements
 const uploadArea = document.getElementById('uploadArea');
@@ -13,6 +14,10 @@ const fileSize = document.getElementById('fileSize');
 const removeBtn = document.getElementById('removeBtn');
 const convertBtn = document.getElementById('convertBtn');
 const loading = document.getElementById('loading');
+const rowPreview = document.getElementById('rowPreview');
+const previewTableBody = document.getElementById('previewTableBody');
+const headerRowText = document.getElementById('headerRowText');
+const continueBtn = document.getElementById('continueBtn');
 const columnSelection = document.getElementById('columnSelection');
 const columnsGrid = document.getElementById('columnsGrid');
 const selectAllBtn = document.getElementById('selectAllBtn');
@@ -105,28 +110,147 @@ function formatFileSize(bytes) {
 // Remove file handler
 removeBtn.addEventListener('click', () => {
     selectedFile = null;
+    selectedHeaderRow = 0;
     fileInput.value = '';
     fileInfo.style.display = 'none';
     uploadArea.style.display = 'block';
     hideError();
     hideResult();
     hideColumnSelection();
+    hideRowPreview();
 });
 
-// Convert button handler - First step: Get headers
+// Convert button handler - First step: Show row preview
 convertBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
     
     hideError();
     hideResult();
     hideColumnSelection();
+    hideRowPreview();
     fileInfo.style.display = 'none';
     loading.style.display = 'block';
     
     try {
         const formData = new FormData();
         formData.append('file', selectedFile);
+        formData.append('action', 'get_preview');
+        
+        const response = await fetch('/api/convert', {
+            method: 'POST',
+            body: formData
+        });
+        
+        // Try to parse JSON response safely
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to process file');
+            } else {
+                const text = await response.text();
+                throw new Error(text || 'Failed to process file');
+            }
+        }
+        
+        const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
+        
+        loading.style.display = 'none';
+        showRowPreview(data.rows);
+        
+    } catch (err) {
+        loading.style.display = 'none';
+        showError(err.message || 'An error occurred while processing the file');
+    }
+});
+
+// Show row preview UI
+function showRowPreview(rows) {
+    previewTableBody.innerHTML = '';
+    
+    rows.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        tr.className = 'preview-row';
+        if (rowIndex === selectedHeaderRow) {
+            tr.classList.add('selected');
+        }
+        
+        // Radio button cell
+        const radioCell = document.createElement('td');
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'headerRow';
+        radio.value = rowIndex;
+        radio.checked = rowIndex === selectedHeaderRow;
+        radio.addEventListener('change', () => {
+            selectedHeaderRow = rowIndex;
+            updateRowPreviewSelection();
+        });
+        radioCell.appendChild(radio);
+        tr.appendChild(radioCell);
+        
+        // Row number cell
+        const rowNumCell = document.createElement('td');
+        rowNumCell.className = 'row-number';
+        rowNumCell.textContent = rowIndex;
+        tr.appendChild(rowNumCell);
+        
+        // Data cells (show first 5 columns)
+        for (let i = 0; i < 5; i++) {
+            const td = document.createElement('td');
+            const cellValue = row[i] || '';
+            // Truncate long values
+            const displayValue = cellValue.length > 50 ? cellValue.substring(0, 50) + '...' : cellValue;
+            td.textContent = displayValue || '(empty)';
+            td.title = cellValue; // Show full value on hover
+            tr.appendChild(td);
+        }
+        
+        // Make row clickable
+        tr.addEventListener('click', (e) => {
+            if (e.target.type !== 'radio') {
+                radio.checked = true;
+                selectedHeaderRow = rowIndex;
+                updateRowPreviewSelection();
+            }
+        });
+        
+        previewTableBody.appendChild(tr);
+    });
+    
+    rowPreview.style.display = 'block';
+    updateHeaderRowText();
+}
+
+// Update row preview selection styling
+function updateRowPreviewSelection() {
+    const rows = previewTableBody.querySelectorAll('.preview-row');
+    rows.forEach((row, index) => {
+        if (index === selectedHeaderRow) {
+            row.classList.add('selected');
+        } else {
+            row.classList.remove('selected');
+        }
+    });
+    updateHeaderRowText();
+}
+
+// Update header row text
+function updateHeaderRowText() {
+    headerRowText.textContent = `Row ${selectedHeaderRow} selected as header`;
+}
+
+// Continue button handler - Proceed to get headers with selected row
+continueBtn.addEventListener('click', async () => {
+    hideError();
+    rowPreview.style.display = 'none';
+    loading.style.display = 'block';
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
         formData.append('action', 'get_headers');
+        formData.append('header_row', selectedHeaderRow);
         
         const response = await fetch('/api/convert', {
             method: 'POST',
@@ -153,6 +277,7 @@ convertBtn.addEventListener('click', async () => {
         
     } catch (err) {
         loading.style.display = 'none';
+        rowPreview.style.display = 'block';
         showError(err.message || 'An error occurred while processing the file');
     }
 });
@@ -256,6 +381,7 @@ proceedBtn.addEventListener('click', async () => {
         formData.append('file', selectedFile);
         formData.append('action', 'convert');
         formData.append('columns', JSON.stringify(selectedColumns));
+        formData.append('header_row', selectedHeaderRow);
         
         const response = await fetch('/api/convert', {
             method: 'POST',
@@ -338,6 +464,7 @@ newFileBtn.addEventListener('click', () => {
     convertedCsvData = null;
     convertedJsonData = null;
     availableColumns = [];
+    selectedHeaderRow = 0;
     fileInput.value = '';
     result.style.display = 'none';
     uploadArea.style.display = 'block';
@@ -370,4 +497,9 @@ function hideResult() {
 // Hide column selection
 function hideColumnSelection() {
     columnSelection.style.display = 'none';
+}
+
+// Hide row preview
+function hideRowPreview() {
+    rowPreview.style.display = 'none';
 }

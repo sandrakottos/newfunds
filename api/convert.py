@@ -47,9 +47,43 @@ class handler(BaseHTTPRequestHandler):
             # Extract action
             action = form.getvalue('action', 'convert')
             
-            # Read Excel file
+            # Handle different actions
+            if action == 'get_preview':
+                # Get raw preview of first rows without any header assumption
+                try:
+                    df_raw = pd.read_excel(io.BytesIO(file_data), header=None)
+                except Exception as e:
+                    self.send_error_response(400, f'Failed to read Excel file: {str(e)}')
+                    return
+                
+                # Get first 10 rows for preview
+                preview_rows = df_raw.head(10).values.tolist()
+                
+                # Convert to JSON-serializable format
+                preview_data = []
+                for row in preview_rows:
+                    preview_data.append([str(cell) if cell is not None and str(cell) != 'nan' else '' for cell in row])
+                
+                response = {
+                    'success': True,
+                    'rows': preview_data,
+                    'total_rows': len(df_raw)
+                }
+                
+                # Send response
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(response).encode())
+                return
+            
+            # For other actions, get header_row parameter
+            header_row = int(form.getvalue('header_row', '0'))
+            
+            # Read Excel file with specified header row
             try:
-                df = pd.read_excel(io.BytesIO(file_data))
+                df = pd.read_excel(io.BytesIO(file_data), header=header_row)
             except Exception as e:
                 self.send_error_response(400, f'Failed to read Excel file: {str(e)}')
                 return

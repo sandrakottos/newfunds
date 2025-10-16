@@ -53,6 +53,36 @@
                 <p>Processing...</p>
             </div>
 
+            <div class="row-preview" id="rowPreview" style="display: none;">
+                <div class="selection-header">
+                    <h2>Select Header Row</h2>
+                    <p>Preview the first rows and choose which one contains your column headers</p>
+                </div>
+                
+                <div class="preview-table-wrapper">
+                    <table class="preview-table" id="previewTable">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Row #</th>
+                                <th>Column A</th>
+                                <th>Column B</th>
+                                <th>Column C</th>
+                                <th>Column D</th>
+                                <th>Column E</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="selection-footer">
+                    <p id="headerRowText" class="count-text">Row 0 selected as header</p>
+                    <button class="btn-primary" id="continueBtn">Continue with Selected Header</button>
+                </div>
+            </div>
+
             <div class="column-selection" id="columnSelection" style="display: none;">
                 <div class="selection-header">
                     <h2>Column Selection</h2>
