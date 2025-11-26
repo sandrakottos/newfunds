@@ -427,8 +427,71 @@ main {
     font-weight: 500;
 }
 
+.row-exclusion {
+    /* Uses same base styles as column-selection */
+}
+
+.exclusion-controls {
+    margin-bottom: 1.5rem;
+}
+
+.exclusion-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.exclusion-input-group label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--foreground);
+}
+
+.exclusion-input-group input[type="number"] {
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    max-width: 120px;
+}
+
+.exclusion-input-group input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(24, 24, 27, 0.1);
+}
+
+.exclusion-info {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+}
+
+.exclusion-preview {
+    padding: 1rem;
+    background: var(--muted);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.preview-text {
+    color: var(--foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin: 0;
+}
+
 .selection-footer {
     text-align: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.selection-footer .btn-secondary:first-child {
+    margin-right: auto;
 }
 
 .count-text {

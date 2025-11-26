@@ -3,6 +3,8 @@ let convertedCsvData = null;
 let convertedJsonData = null;
 let availableColumns = [];
 let selectedHeaderRow = 0;
+let totalRowsAfterCleaning = 0;
+let rowsToExclude = 0;
 
 // Get DOM elements
 const uploadArea = document.getElementById('uploadArea');
@@ -24,6 +26,12 @@ const selectAllBtn = document.getElementById('selectAllBtn');
 const deselectAllBtn = document.getElementById('deselectAllBtn');
 const selectedCount = document.getElementById('selectedCount');
 const proceedBtn = document.getElementById('proceedBtn');
+const rowExclusion = document.getElementById('rowExclusion');
+const excludeRowsInput = document.getElementById('excludeRowsInput');
+const exclusionInfo = document.getElementById('exclusionInfo');
+const previewText = document.getElementById('previewText');
+const backToColumnsBtn = document.getElementById('backToColumnsBtn');
+const generateExportBtn = document.getElementById('generateExportBtn');
 const result = document.getElementById('result');
 const resultMessage = document.getElementById('resultMessage');
 const downloadCsvBtn = document.getElementById('downloadCsvBtn');
@@ -96,6 +104,7 @@ function handleFile(file) {
     hideError();
     hideResult();
     hideColumnSelection();
+    hideRowExclusion();
 }
 
 // Format file size
@@ -117,6 +126,7 @@ removeBtn.addEventListener('click', () => {
     hideError();
     hideResult();
     hideColumnSelection();
+    hideRowExclusion();
     hideRowPreview();
 });
 
@@ -127,6 +137,7 @@ convertBtn.addEventListener('click', async () => {
     hideError();
     hideResult();
     hideColumnSelection();
+    hideRowExclusion();
     hideRowPreview();
     fileInfo.style.display = 'none';
     loading.style.display = 'block';
@@ -377,61 +388,55 @@ function updateSelectedCount() {
     }
 }
 
-// Proceed button - Convert with selected columns
+// Proceed button - Go to row exclusion
 proceedBtn.addEventListener('click', async () => {
     const checkboxes = columnsGrid.querySelectorAll('input[type="checkbox"]:checked');
     const selectedColumns = Array.from(checkboxes).map(cb => cb.value);
-    
+
     if (selectedColumns.length === 0) {
         showError('Please select at least one column');
         return;
     }
-    
+
+    // Store selected columns for later use
+    availableColumns = selectedColumns;
+
     hideError();
     columnSelection.style.display = 'none';
     loading.style.display = 'block';
-    
+
     try {
         const formData = new FormData();
         formData.append('file', selectedFile);
-        formData.append('action', 'convert');
-        formData.append('columns', JSON.stringify(selectedColumns));
+        formData.append('action', 'get_headers');
         formData.append('header_row', selectedHeaderRow);
-        
+
         const response = await fetch('/api/convert', {
             method: 'POST',
             body: formData
         });
-        
+
+        // Try to parse JSON response safely
         const contentType = response.headers.get('content-type') || '';
         if (!response.ok) {
             if (contentType.includes('application/json')) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Conversion failed');
+                throw new Error(errorData.error || 'Failed to process file');
             } else {
                 const text = await response.text();
-                throw new Error(text || 'Conversion failed');
+                throw new Error(text || 'Failed to process file');
             }
         }
-        
+
         const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
-        convertedCsvData = data.csv_data;
-        convertedJsonData = data.json_data;
-        
+
         loading.style.display = 'none';
-        result.style.display = 'block';
-        
-        const originalRows = data.original_rows || 'N/A';
-        const cleanedRows = data.cleaned_rows || 'N/A';
-        const removedRows = data.removed_rows || 'N/A';
-        const columnsIncluded = selectedColumns.length;
-        
-        resultMessage.textContent = `${cleanedRows} rows × ${columnsIncluded} columns | Removed ${removedRows} rows`;
-        
+        showRowExclusion(data.total_rows);
+
     } catch (err) {
         loading.style.display = 'none';
         columnSelection.style.display = 'block';
-        showError(err.message || 'An error occurred during conversion');
+        showError(err.message || 'An error occurred while processing the file');
     }
 });
 
@@ -513,6 +518,91 @@ function hideResult() {
 function hideColumnSelection() {
     columnSelection.style.display = 'none';
 }
+
+// Hide row exclusion
+function hideRowExclusion() {
+    rowExclusion.style.display = 'none';
+}
+
+// Show row exclusion UI
+function showRowExclusion(totalRows) {
+    totalRowsAfterCleaning = totalRows;
+    rowsToExclude = 0;
+    excludeRowsInput.value = 0;
+    updateExclusionPreview();
+    rowExclusion.style.display = 'block';
+}
+
+// Update exclusion preview text
+function updateExclusionPreview() {
+    const remainingRows = Math.max(0, totalRowsAfterCleaning - rowsToExclude);
+    exclusionInfo.textContent = `${rowsToExclude} rows will be excluded`;
+    previewText.textContent = `Preview: ${totalRowsAfterCleaning} rows total → ${remainingRows} rows after exclusion`;
+}
+
+// Handle exclude rows input change
+excludeRowsInput.addEventListener('input', (e) => {
+    rowsToExclude = Math.max(0, Math.min(parseInt(e.target.value) || 0, totalRowsAfterCleaning));
+    e.target.value = rowsToExclude;
+    updateExclusionPreview();
+});
+
+// Back to columns button handler
+backToColumnsBtn.addEventListener('click', () => {
+    hideRowExclusion();
+    columnSelection.style.display = 'block';
+});
+
+// Generate export button handler
+generateExportBtn.addEventListener('click', async () => {
+    hideError();
+    rowExclusion.style.display = 'none';
+    loading.style.display = 'block';
+
+    try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('action', 'convert');
+        formData.append('columns', JSON.stringify(availableColumns));
+        formData.append('header_row', selectedHeaderRow);
+        formData.append('exclude_rows', rowsToExclude.toString());
+
+        const response = await fetch('/api/convert', {
+            method: 'POST',
+            body: formData
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Conversion failed');
+            } else {
+                const text = await response.text();
+                throw new Error(text || 'Conversion failed');
+            }
+        }
+
+        const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
+        convertedCsvData = data.csv_data;
+        convertedJsonData = data.json_data;
+
+        loading.style.display = 'none';
+        result.style.display = 'block';
+
+        const originalRows = data.original_rows || 'N/A';
+        const cleanedRows = data.cleaned_rows || 'N/A';
+        const removedRows = data.removed_rows || 'N/A';
+        const columnsIncluded = availableColumns.length;
+
+        resultMessage.textContent = `${cleanedRows} rows × ${columnsIncluded} columns | Removed ${removedRows} rows${rowsToExclude > 0 ? ` | Excluded ${rowsToExclude} bottom rows` : ''}`;
+
+    } catch (err) {
+        loading.style.display = 'none';
+        rowExclusion.style.display = 'block';
+        showError(err.message || 'An error occurred during conversion');
+    }
+});
 
 // Hide row preview
 function hideRowPreview() {

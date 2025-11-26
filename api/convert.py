@@ -106,7 +106,7 @@ class handler(BaseHTTPRequestHandler):
             else:
                 # Convert with selected columns
                 selected_columns_json = form.getvalue('columns', '')
-                
+
                 if selected_columns_json:
                     try:
                         selected_columns = json.loads(selected_columns_json)
@@ -115,22 +115,36 @@ class handler(BaseHTTPRequestHandler):
                     except Exception as e:
                         self.send_error_response(400, f'Invalid column selection: {str(e)}')
                         return
-                
+
+                # Handle row exclusion from bottom
+                exclude_rows = int(form.getvalue('exclude_rows', '0'))
+                if exclude_rows > 0:
+                    # Exclude rows from the bottom
+                    if exclude_rows >= len(df_cleaned):
+                        # If excluding all rows, return empty dataframe
+                        df_cleaned = df_cleaned.iloc[0:0]
+                    else:
+                        df_cleaned = df_cleaned.iloc[:-exclude_rows]
+
+                # Update final row count after exclusion
+                final_rows = len(df_cleaned)
+
                 # Convert to CSV
                 csv_buffer = io.StringIO()
                 df_cleaned.to_csv(csv_buffer, index=False)
                 csv_data = csv_buffer.getvalue()
-                
+
                 # Convert to JSON
                 json_data = df_cleaned.to_json(orient='records', indent=2, date_format='iso')
-                
+
                 response = {
                     'success': True,
                     'csv_data': csv_data,
                     'json_data': json_data,
                     'original_rows': original_rows,
-                    'cleaned_rows': cleaned_rows,
-                    'removed_rows': removed_rows
+                    'cleaned_rows': final_rows,
+                    'removed_rows': removed_rows,
+                    'excluded_rows': exclude_rows
                 }
             
             # Send response
