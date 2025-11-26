@@ -277,25 +277,38 @@ class handler(BaseHTTPRequestHandler):
                 # Clean Portfolio Turnover Ratio column - remove dates in brackets
                 portfolio_turnover_col = None
                 for col in df_filtered.columns:
-                    col_lower = str(col).lower().strip()
-                    if 'portfolio turnover ratio' in col_lower:
-                        portfolio_turnover_col = col
+                    col_str = str(col).strip()
+                    col_lower = col_str.lower()
+                    # Match Portfolio Turnover Ratio column by name (case-insensitive, handle variations)
+                    if 'portfolio' in col_lower and 'turnover' in col_lower and 'ratio' in col_lower:
+                        portfolio_turnover_col = col  # Use original column name from dataframe
                         break
                 
                 if portfolio_turnover_col is not None:
                     def clean_portfolio_turnover(value):
-                        if pd.isna(value) or value == '':
+                        # Handle NaN/null values
+                        if pd.isna(value):
                             return value
+                        
                         value_str = str(value).strip()
+                        
                         # Keep null or "--" as is
-                        if value_str.lower() == '--' or value_str.lower() == 'nan':
+                        if value_str == '' or value_str.lower() == '--' or value_str.lower() == 'nan':
                             return value_str
-                        # Remove date in brackets like "(31-Oct-2025)"
-                        # Match pattern: space and (anything in brackets) at the end
+                        
+                        # Remove date in brackets like "(31-Oct-2025)" or " (31-Oct-2025)"
+                        # Pattern: optional whitespace, opening bracket, anything, closing bracket, optional whitespace at end
+                        # Try multiple patterns to be sure
                         cleaned = re.sub(r'\s*\([^)]+\)\s*$', '', value_str)
-                        return cleaned.strip()
+                        # Also try pattern without requiring end of string (in case there's trailing whitespace)
+                        cleaned = re.sub(r'\s*\([^)]+\)', '', cleaned)
+                        cleaned = cleaned.strip()
+                        
+                        # Return cleaned value, or original if cleaning resulted in empty string
+                        return cleaned if cleaned else value_str
                     
-                    df_filtered[portfolio_turnover_col] = df_filtered[portfolio_turnover_col].apply(clean_portfolio_turnover)
+                    # Apply cleaning to the column - use .loc to ensure we modify the dataframe
+                    df_filtered.loc[:, portfolio_turnover_col] = df_filtered[portfolio_turnover_col].apply(clean_portfolio_turnover)
                 
                 # Convert to CSV
                 csv_buffer = io.StringIO()
