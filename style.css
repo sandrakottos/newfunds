@@ -428,8 +428,30 @@ main {
     font-weight: 500;
 }
 
-.row-exclusion {
+.row-exclusion,
+.post-merger-review {
     /* Uses same base styles as column-selection */
+}
+
+.post-merger-pre {
+    background-color: #fef2f2;
+}
+
+.post-merger-pre:hover {
+    background-color: #fee2e2;
+}
+
+.post-merger-post {
+    background-color: #f0fdf4;
+}
+
+.post-merger-post:hover {
+    background-color: #dcfce7;
+}
+
+.row-type {
+    font-weight: 600;
+    width: 100px;
 }
 
 .selection-footer {

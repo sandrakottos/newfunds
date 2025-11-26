@@ -5,6 +5,8 @@ let availableColumns = [];
 let selectedHeaderRow = 0;
 let bottomRowsData = [];
 let excludedRowIndices = new Set();
+let postMergerCandidates = [];
+let selectedPostMergerDeletions = new Set();
 
 // Get DOM elements
 const uploadArea = document.getElementById('uploadArea');
@@ -34,6 +36,15 @@ const excludedRowsCount = document.getElementById('excludedRowsCount');
 const selectAllRowsBtn = document.getElementById('selectAllRowsBtn');
 const deselectAllRowsBtn = document.getElementById('deselectAllRowsBtn');
 const backToColumnsBtn = document.getElementById('backToColumnsBtn');
+const continueToPostMergerBtn = document.getElementById('continueToPostMergerBtn');
+const postMergerReview = document.getElementById('postMergerReview');
+const postMergerTable = document.getElementById('postMergerTable');
+const postMergerTableHead = document.getElementById('postMergerTableHead');
+const postMergerTableBody = document.getElementById('postMergerTableBody');
+const postMergerSelectedCount = document.getElementById('postMergerSelectedCount');
+const selectAllPostMergerBtn = document.getElementById('selectAllPostMergerBtn');
+const deselectAllPostMergerBtn = document.getElementById('deselectAllPostMergerBtn');
+const backToRowExclusionBtn = document.getElementById('backToRowExclusionBtn');
 const generateExportBtn = document.getElementById('generateExportBtn');
 const result = document.getElementById('result');
 const resultMessage = document.getElementById('resultMessage');
@@ -113,6 +124,7 @@ function handleFile(file) {
     hideResult();
     hideColumnSelection();
     hideRowExclusion();
+    hidePostMergerReview();
 }
 
 // Format file size
@@ -135,6 +147,7 @@ removeBtn.addEventListener('click', () => {
     hideResult();
     hideColumnSelection();
     hideRowExclusion();
+    hidePostMergerReview();
     hideRowPreview();
 });
 
@@ -146,6 +159,7 @@ convertBtn.addEventListener('click', async () => {
     hideResult();
     hideColumnSelection();
     hideRowExclusion();
+    hidePostMergerReview();
     hideRowPreview();
     fileInfo.style.display = 'none';
     loading.style.display = 'block';
@@ -494,6 +508,10 @@ newFileBtn.addEventListener('click', () => {
     convertedJsonData = null;
     availableColumns = [];
     selectedHeaderRow = 0;
+    bottomRowsData = [];
+    excludedRowIndices.clear();
+    postMergerCandidates = [];
+    selectedPostMergerDeletions.clear();
     fileInput.value = '';
     result.style.display = 'none';
     postMergerReport.style.display = 'none';
@@ -533,6 +551,172 @@ function hideColumnSelection() {
 function hideRowExclusion() {
     rowExclusion.style.display = 'none';
 }
+
+// Show POST MERGER review UI
+function showPostMergerReview(candidates, skipped, columns) {
+    postMergerCandidates = candidates;
+    selectedPostMergerDeletions.clear();
+    
+    // Clear table
+    postMergerTableBody.innerHTML = '';
+    postMergerTableHead.innerHTML = '';
+    
+    // Build table header
+    const headerRow = document.createElement('tr');
+    headerRow.appendChild(document.createElement('th')); // Checkbox column
+    headerRow.appendChild(document.createElement('th')); // Type column (Pre/Post)
+    headerRow.appendChild(document.createElement('th')); // Row # column
+    
+    // Add column headers
+    columns.forEach((col) => {
+        const th = document.createElement('th');
+        th.textContent = col;
+        headerRow.appendChild(th);
+    });
+    
+    postMergerTableHead.appendChild(headerRow);
+    
+    // Build table body - show pairs (pre-merger above, post-merger below)
+    candidates.forEach((candidate) => {
+        const preMerger = candidate.pre_merger;
+        const postMerger = candidate.post_merger;
+        
+        // Pre-merger row (will be deleted if selected)
+        const preTr = document.createElement('tr');
+        preTr.className = 'preview-row post-merger-pre';
+        preTr.dataset.preMergerIndex = preMerger.row_index;
+        
+        // Checkbox cell
+        const checkboxCell = document.createElement('td');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `pm-delete-${preMerger.row_index}`;
+        checkbox.value = preMerger.row_index;
+        checkbox.checked = true; // Default to selected
+        selectedPostMergerDeletions.add(preMerger.row_index);
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                selectedPostMergerDeletions.add(preMerger.row_index);
+            } else {
+                selectedPostMergerDeletions.delete(preMerger.row_index);
+            }
+            updatePostMergerSelectedCount();
+        });
+        checkboxCell.appendChild(checkbox);
+        preTr.appendChild(checkboxCell);
+        
+        // Type cell
+        const typeCell = document.createElement('td');
+        typeCell.className = 'row-type';
+        typeCell.textContent = 'Pre-Merger';
+        typeCell.style.color = '#ef4444';
+        typeCell.style.fontWeight = '600';
+        preTr.appendChild(typeCell);
+        
+        // Row number cell
+        const rowNumCell = document.createElement('td');
+        rowNumCell.className = 'row-number';
+        rowNumCell.textContent = `Row ${preMerger.row_index + 1}`;
+        preTr.appendChild(rowNumCell);
+        
+        // Data cells
+        preMerger.values.forEach((value) => {
+            const td = document.createElement('td');
+            const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+            td.textContent = displayValue || '(empty)';
+            td.title = value;
+            preTr.appendChild(td);
+        });
+        
+        // Make row clickable
+        preTr.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        postMergerTableBody.appendChild(preTr);
+        
+        // Post-merger row (will be kept)
+        const postTr = document.createElement('tr');
+        postTr.className = 'preview-row post-merger-post';
+        postTr.dataset.postMergerIndex = postMerger.row_index;
+        
+        // Empty checkbox cell (for alignment)
+        const emptyCheckboxCell = document.createElement('td');
+        emptyCheckboxCell.innerHTML = '→';
+        emptyCheckboxCell.style.textAlign = 'center';
+        emptyCheckboxCell.style.color = '#10b981';
+        emptyCheckboxCell.style.fontWeight = 'bold';
+        postTr.appendChild(emptyCheckboxCell);
+        
+        // Type cell
+        const postTypeCell = document.createElement('td');
+        postTypeCell.className = 'row-type';
+        postTypeCell.textContent = 'POST MERGER';
+        postTypeCell.style.color = '#10b981';
+        postTypeCell.style.fontWeight = '600';
+        postTr.appendChild(postTypeCell);
+        
+        // Row number cell
+        const postRowNumCell = document.createElement('td');
+        postRowNumCell.className = 'row-number';
+        postRowNumCell.textContent = `Row ${postMerger.row_index + 1}`;
+        postTr.appendChild(postRowNumCell);
+        
+        // Data cells
+        postMerger.values.forEach((value) => {
+            const td = document.createElement('td');
+            const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+            td.textContent = displayValue || '(empty)';
+            td.title = value;
+            postTr.appendChild(td);
+        });
+        
+        postMergerTableBody.appendChild(postTr);
+    });
+    
+    updatePostMergerSelectedCount();
+    postMergerReview.style.display = 'block';
+}
+
+// Update POST MERGER selected count
+function updatePostMergerSelectedCount() {
+    const count = selectedPostMergerDeletions.size;
+    if (count === 0) {
+        postMergerSelectedCount.textContent = '0 pre-merger rows selected for deletion';
+    } else if (count === 1) {
+        postMergerSelectedCount.textContent = '1 pre-merger row selected for deletion';
+    } else {
+        postMergerSelectedCount.textContent = `${count} pre-merger rows selected for deletion`;
+    }
+}
+
+// Hide POST MERGER review
+function hidePostMergerReview() {
+    postMergerReview.style.display = 'none';
+}
+
+// Select all POST MERGER deletions button
+selectAllPostMergerBtn.addEventListener('click', () => {
+    const checkboxes = postMergerTableBody.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = true;
+        selectedPostMergerDeletions.add(parseInt(cb.value));
+    });
+    updatePostMergerSelectedCount();
+});
+
+// Deselect all POST MERGER deletions button
+deselectAllPostMergerBtn.addEventListener('click', () => {
+    const checkboxes = postMergerTableBody.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+    });
+    selectedPostMergerDeletions.clear();
+    updatePostMergerSelectedCount();
+});
 
 // Show row exclusion UI
 function showRowExclusion(rows, columns, totalRows) {
@@ -650,10 +834,75 @@ backToColumnsBtn.addEventListener('click', () => {
     columnSelection.style.display = 'block';
 });
 
-// Generate export button handler
-generateExportBtn.addEventListener('click', async () => {
+// Continue to POST MERGER review button handler
+continueToPostMergerBtn.addEventListener('click', async () => {
     hideError();
     rowExclusion.style.display = 'none';
+    loading.style.display = 'block';
+
+    try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('action', 'get_post_merger_candidates');
+        formData.append('header_row', selectedHeaderRow);
+        formData.append('columns', JSON.stringify(availableColumns));
+
+        const response = await fetch('/api/convert', {
+            method: 'POST',
+            body: formData
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to get POST MERGER candidates');
+            } else {
+                const text = await response.text();
+                throw new Error(text || 'Failed to get POST MERGER candidates');
+            }
+        }
+
+        const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
+        postMergerCandidates = data.candidates || [];
+        
+        loading.style.display = 'none';
+        
+        // If no candidates, skip directly to export
+        if (postMergerCandidates.length === 0) {
+            // Skip POST MERGER review, go directly to export
+            await generateExport();
+        } else {
+            showPostMergerReview(data.candidates, data.skipped || [], data.columns);
+        }
+
+    } catch (err) {
+        loading.style.display = 'none';
+        rowExclusion.style.display = 'block';
+        showError(err.message || 'An error occurred while processing POST MERGER candidates');
+    }
+});
+
+// Back to row exclusion button handler
+backToRowExclusionBtn.addEventListener('click', () => {
+    hidePostMergerReview();
+    rowExclusion.style.display = 'block';
+});
+
+// Generate export button handler (final step)
+generateExportBtn.addEventListener('click', async () => {
+    await generateExport();
+});
+
+// Generate export function
+async function generateExport() {
+    hideError();
+    if (postMergerReview.style.display !== 'none') {
+        postMergerReview.style.display = 'none';
+    }
+    if (rowExclusion.style.display !== 'none') {
+        rowExclusion.style.display = 'none';
+    }
     loading.style.display = 'block';
 
     try {
@@ -663,6 +912,7 @@ generateExportBtn.addEventListener('click', async () => {
         formData.append('columns', JSON.stringify(availableColumns));
         formData.append('header_row', selectedHeaderRow);
         formData.append('exclude_row_indices', JSON.stringify(Array.from(excludedRowIndices)));
+        formData.append('post_merger_deletions', JSON.stringify(Array.from(selectedPostMergerDeletions)));
 
         const response = await fetch('/api/convert', {
             method: 'POST',
@@ -691,8 +941,8 @@ generateExportBtn.addEventListener('click', async () => {
         const cleanedRows = data.cleaned_rows || 'N/A';
         const removedRows = data.removed_rows || 'N/A';
         const excludedRows = data.excluded_rows || 0;
+        const postMergerDeleted = data.post_merger_deleted || 0;
         const columnsIncluded = availableColumns.length;
-        const postMergerData = data.post_merger_report || { deleted: [], kept: [], skipped: [] };
 
         // Build result message
         let messageParts = [`${cleanedRows} rows × ${columnsIncluded} columns`];
@@ -702,13 +952,13 @@ generateExportBtn.addEventListener('click', async () => {
         if (excludedRows > 0) {
             messageParts.push(`Excluded ${excludedRows} rows`);
         }
-        if (postMergerData.deleted && postMergerData.deleted.length > 0) {
-            messageParts.push(`Auto-deleted ${postMergerData.deleted.length} pre-merger duplicate${postMergerData.deleted.length > 1 ? 's' : ''}`);
+        if (postMergerDeleted > 0) {
+            messageParts.push(`Deleted ${postMergerDeleted} pre-merger duplicate${postMergerDeleted > 1 ? 's' : ''}`);
         }
         resultMessage.textContent = messageParts.join(' | ');
 
-        // Display POST MERGER report
-        displayPostMergerReport(postMergerData);
+        // Hide POST MERGER report (not needed in new flow)
+        postMergerReport.style.display = 'none';
 
     } catch (err) {
         loading.style.display = 'none';
