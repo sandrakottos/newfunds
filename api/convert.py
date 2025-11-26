@@ -274,6 +274,29 @@ class handler(BaseHTTPRequestHandler):
                 else:
                     df_filtered = df_cleaned.copy()
                 
+                # Clean Portfolio Turnover Ratio column - remove dates in brackets
+                portfolio_turnover_col = None
+                for col in df_filtered.columns:
+                    col_lower = str(col).lower().strip()
+                    if 'portfolio turnover ratio' in col_lower:
+                        portfolio_turnover_col = col
+                        break
+                
+                if portfolio_turnover_col is not None:
+                    def clean_portfolio_turnover(value):
+                        if pd.isna(value) or value == '':
+                            return value
+                        value_str = str(value).strip()
+                        # Keep null or "--" as is
+                        if value_str.lower() == '--' or value_str.lower() == 'nan':
+                            return value_str
+                        # Remove date in brackets like "(31-Oct-2025)"
+                        # Match pattern: space and (anything in brackets) at the end
+                        cleaned = re.sub(r'\s*\([^)]+\)\s*$', '', value_str)
+                        return cleaned.strip()
+                    
+                    df_filtered[portfolio_turnover_col] = df_filtered[portfolio_turnover_col].apply(clean_portfolio_turnover)
+                
                 # Convert to CSV
                 csv_buffer = io.StringIO()
                 df_filtered.to_csv(csv_buffer, index=False)
