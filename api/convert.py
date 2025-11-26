@@ -163,6 +163,103 @@ class handler(BaseHTTPRequestHandler):
                     'columns': df_cleaned.columns.tolist(),
                     'total_rows': len(df_cleaned)
                 }
+            elif action == 'filter_testing_columns':
+                # Filter to only testing columns
+                selected_columns_json = form.getvalue('columns', '')
+                
+                if selected_columns_json:
+                    try:
+                        selected_columns = json.loads(selected_columns_json)
+                        # Filter to only selected columns first
+                        df_cleaned = df_cleaned[selected_columns]
+                    except Exception as e:
+                        self.send_error_response(400, f'Invalid column selection: {str(e)}')
+                        return
+                
+                # Handle POST MERGER deletions
+                post_merger_deletions_json = form.getvalue('post_merger_deletions', '')
+                if post_merger_deletions_json:
+                    try:
+                        post_merger_deletions = json.loads(post_merger_deletions_json)
+                        if post_merger_deletions and len(post_merger_deletions) > 0:
+                            deletion_set = set(post_merger_deletions)
+                            df_cleaned = df_cleaned[~df_cleaned.index.isin(deletion_set)]
+                    except Exception as e:
+                        self.send_error_response(400, f'Invalid POST MERGER deletions: {str(e)}')
+                        return
+                
+                # Handle row exclusion
+                exclude_rows_json = form.getvalue('exclude_row_indices', '')
+                if exclude_rows_json:
+                    try:
+                        exclude_indices = json.loads(exclude_rows_json)
+                        if exclude_indices and len(exclude_indices) > 0:
+                            exclude_set = set(exclude_indices)
+                            df_cleaned = df_cleaned[~df_cleaned.index.isin(exclude_set)]
+                    except Exception as e:
+                        self.send_error_response(400, f'Invalid row exclusion indices: {str(e)}')
+                        return
+                
+                # Define testing columns to keep
+                testing_columns = [
+                    'Scheme Name',
+                    '6 Months - P2P',
+                    '1 Year - P2P',
+                    '3 Years - P2P',
+                    '5 Years - P2P',
+                    '10 Years - P2P',
+                    'P/E',
+                    'P/B',
+                    'Std.Dev.',
+                    'Beta',
+                    'Sharpe',
+                    'Information Ratio',
+                    'Sortino',
+                    'Corpus (In crs.)',
+                    'Expense Ratio (Current)',
+                    'Portfolio Turnover Ratio',
+                    '%_of_Net_Asset_10(Scheme Portfolio)'
+                ]
+                
+                # Find matching columns (case-insensitive, handle variations)
+                available_columns = df_cleaned.columns.tolist()
+                columns_to_keep = []
+                
+                for test_col in testing_columns:
+                    # Try exact match first
+                    if test_col in available_columns:
+                        columns_to_keep.append(test_col)
+                    else:
+                        # Try case-insensitive match
+                        test_col_lower = test_col.lower()
+                        for col in available_columns:
+                            if col.lower() == test_col_lower:
+                                columns_to_keep.append(col)
+                                break
+                
+                # Filter dataframe to only testing columns
+                if columns_to_keep:
+                    df_filtered = df_cleaned[columns_to_keep]
+                else:
+                    df_filtered = df_cleaned.copy()
+                
+                # Convert to CSV
+                csv_buffer = io.StringIO()
+                df_filtered.to_csv(csv_buffer, index=False)
+                csv_data = csv_buffer.getvalue()
+                
+                # Convert to JSON
+                json_data = df_filtered.to_json(orient='records', indent=2, date_format='iso')
+                
+                response = {
+                    'success': True,
+                    'csv_data': csv_data,
+                    'json_data': json_data,
+                    'original_rows': len(df_cleaned),
+                    'filtered_rows': len(df_filtered),
+                    'columns': columns_to_keep,
+                    'columns_count': len(columns_to_keep)
+                }
             else:
                 # Convert with selected columns
                 selected_columns_json = form.getvalue('columns', '')

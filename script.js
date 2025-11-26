@@ -55,6 +55,7 @@ const postMergerSkipped = document.getElementById('postMergerSkipped');
 const postMergerSkippedList = document.getElementById('postMergerSkippedList');
 const downloadCsvBtn = document.getElementById('downloadCsvBtn');
 const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+const furtherTestingBtn = document.getElementById('furtherTestingBtn');
 const newFileBtn = document.getElementById('newFileBtn');
 const error = document.getElementById('error');
 const errorMessage = document.getElementById('errorMessage');
@@ -499,6 +500,53 @@ downloadJsonBtn.addEventListener('click', () => {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+});
+
+// Further testing button handler
+furtherTestingBtn.addEventListener('click', async () => {
+    hideError();
+    loading.style.display = 'block';
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('action', 'filter_testing_columns');
+        formData.append('header_row', selectedHeaderRow);
+        formData.append('columns', JSON.stringify(availableColumns));
+        formData.append('exclude_row_indices', JSON.stringify(Array.from(excludedRowIndices)));
+        formData.append('post_merger_deletions', JSON.stringify(Array.from(selectedPostMergerDeletions)));
+
+        const response = await fetch('/api/convert', {
+            method: 'POST',
+            body: formData
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Filtering failed');
+            } else {
+                const text = await response.text();
+                throw new Error(text || 'Filtering failed');
+            }
+        }
+
+        const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
+        convertedCsvData = data.csv_data;
+        convertedJsonData = data.json_data;
+
+        loading.style.display = 'none';
+        
+        // Update result message
+        const filteredRows = data.filtered_rows || 'N/A';
+        const columnsCount = data.columns_count || 0;
+        resultMessage.textContent = `${filteredRows} rows × ${columnsCount} columns | Filtered to testing columns only`;
+
+    } catch (err) {
+        loading.style.display = 'none';
+        showError(err.message || 'An error occurred during filtering');
+    }
 });
 
 // New file button handler
