@@ -121,12 +121,16 @@ class handler(BaseHTTPRequestHandler):
                 bottom_rows_df = df_cleaned.tail(num_rows_to_show)
                 
                 # Convert to list format with row indices
+                # Get column names in the correct order
+                column_names = df_cleaned.columns.tolist()
                 bottom_rows_data = []
                 for idx, row in bottom_rows_df.iterrows():
+                    # Get values in the exact order of columns
+                    row_values = [str(row[col]) if pd.notna(row[col]) else '' for col in column_names]
                     row_data = {
-                        'index': int(idx),  # Original dataframe index
-                        'display_index': len(df_cleaned) - num_rows_to_show + len(bottom_rows_data),  # Display position from bottom
-                        'values': [str(val) if pd.notna(val) else '' for val in row]
+                        'index': int(idx),  # Original dataframe index (for exclusion)
+                        'display_index': int(idx),  # Row number in dataframe (0-indexed)
+                        'values': row_values
                     }
                     bottom_rows_data.append(row_data)
                 
