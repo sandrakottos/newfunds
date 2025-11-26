@@ -962,10 +962,14 @@ async function generateExport() {
 
     } catch (err) {
         loading.style.display = 'none';
-        rowExclusion.style.display = 'block';
+        if (postMergerReview.style.display !== 'none') {
+            postMergerReview.style.display = 'block';
+        } else {
+            rowExclusion.style.display = 'block';
+        }
         showError(err.message || 'An error occurred during conversion');
     }
-});
+}
 
 // Display POST MERGER report
 function displayPostMergerReport(report) {
