@@ -221,21 +221,52 @@ class handler(BaseHTTPRequestHandler):
                     '%_of_Net_Asset_10(Scheme Portfolio)'
                 ]
                 
-                # Find matching columns (case-insensitive, handle variations)
+                # Find matching columns (case-insensitive, handle variations and whitespace)
                 available_columns = df_cleaned.columns.tolist()
                 columns_to_keep = []
                 
                 for test_col in testing_columns:
+                    test_col_clean = test_col.strip()
+                    matched = False
+                    
                     # Try exact match first
-                    if test_col in available_columns:
-                        columns_to_keep.append(test_col)
+                    if test_col_clean in available_columns:
+                        columns_to_keep.append(test_col_clean)
+                        matched = True
                     else:
-                        # Try case-insensitive match
-                        test_col_lower = test_col.lower()
+                        # Try case-insensitive match with trimmed whitespace
+                        test_col_lower = test_col_clean.lower()
                         for col in available_columns:
-                            if col.lower() == test_col_lower:
-                                columns_to_keep.append(col)
+                            col_clean = str(col).strip()
+                            if col_clean.lower() == test_col_lower:
+                                columns_to_keep.append(col)  # Use original column name
+                                matched = True
                                 break
+                    
+                    # If still not matched, try partial match for %_of_Net_Asset_10
+                    if not matched and '%_of_net_asset_10' in test_col_lower:
+                        for col in available_columns:
+                            col_lower = str(col).lower().strip()
+                            if '%_of_net_asset_10' in col_lower and 'scheme portfolio' in col_lower:
+                                columns_to_keep.append(col)
+                                matched = True
+                                break
+                
+                # Final check: ensure %_of_Net_Asset_10 column is included
+                net_asset_found = False
+                for col in columns_to_keep:
+                    if '%_of_net_asset_10' in str(col).lower() or '% of net asset' in str(col).lower():
+                        net_asset_found = True
+                        break
+                
+                # If not found, search more aggressively
+                if not net_asset_found:
+                    for col in available_columns:
+                        col_lower = str(col).lower().strip()
+                        if ('%_of_net_asset' in col_lower or '% of net asset' in col_lower) and 'scheme portfolio' in col_lower:
+                            if col not in columns_to_keep:
+                                columns_to_keep.append(col)
+                            break
                 
                 # Filter dataframe to only testing columns
                 if columns_to_keep:
