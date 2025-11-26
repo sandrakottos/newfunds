@@ -37,6 +37,11 @@ const backToColumnsBtn = document.getElementById('backToColumnsBtn');
 const generateExportBtn = document.getElementById('generateExportBtn');
 const result = document.getElementById('result');
 const resultMessage = document.getElementById('resultMessage');
+const postMergerReport = document.getElementById('postMergerReport');
+const postMergerDeleted = document.getElementById('postMergerDeleted');
+const postMergerDeletedList = document.getElementById('postMergerDeletedList');
+const postMergerSkipped = document.getElementById('postMergerSkipped');
+const postMergerSkippedList = document.getElementById('postMergerSkippedList');
 const downloadCsvBtn = document.getElementById('downloadCsvBtn');
 const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 const newFileBtn = document.getElementById('newFileBtn');
@@ -491,6 +496,7 @@ newFileBtn.addEventListener('click', () => {
     selectedHeaderRow = 0;
     fileInput.value = '';
     result.style.display = 'none';
+    postMergerReport.style.display = 'none';
     uploadArea.style.display = 'block';
 });
 
@@ -686,8 +692,23 @@ generateExportBtn.addEventListener('click', async () => {
         const removedRows = data.removed_rows || 'N/A';
         const excludedRows = data.excluded_rows || 0;
         const columnsIncluded = availableColumns.length;
+        const postMergerData = data.post_merger_report || { deleted: [], kept: [], skipped: [] };
 
-        resultMessage.textContent = `${cleanedRows} rows × ${columnsIncluded} columns | Removed ${removedRows} rows${excludedRows > 0 ? ` | Excluded ${excludedRows} rows` : ''}`;
+        // Build result message
+        let messageParts = [`${cleanedRows} rows × ${columnsIncluded} columns`];
+        if (removedRows > 0) {
+            messageParts.push(`Removed ${removedRows} rows`);
+        }
+        if (excludedRows > 0) {
+            messageParts.push(`Excluded ${excludedRows} rows`);
+        }
+        if (postMergerData.deleted && postMergerData.deleted.length > 0) {
+            messageParts.push(`Auto-deleted ${postMergerData.deleted.length} pre-merger duplicate${postMergerData.deleted.length > 1 ? 's' : ''}`);
+        }
+        resultMessage.textContent = messageParts.join(' | ');
+
+        // Display POST MERGER report
+        displayPostMergerReport(postMergerData);
 
     } catch (err) {
         loading.style.display = 'none';
@@ -695,6 +716,47 @@ generateExportBtn.addEventListener('click', async () => {
         showError(err.message || 'An error occurred during conversion');
     }
 });
+
+// Display POST MERGER report
+function displayPostMergerReport(report) {
+    // Clear previous content
+    postMergerDeletedList.innerHTML = '';
+    postMergerSkippedList.innerHTML = '';
+    
+    // Show deleted rows
+    if (report.deleted && report.deleted.length > 0 && report.kept && report.kept.length > 0) {
+        // Match deleted with kept rows by index order
+        report.deleted.forEach((deletedItem, idx) => {
+            const keptItem = report.kept[idx] || { scheme_name: 'Unknown' };
+            const li = document.createElement('li');
+            li.textContent = `"${deletedItem.scheme_name}" (Row ${deletedItem.row_index + 1}) → Kept "${keptItem.scheme_name}" (Row ${keptItem.row_index + 1})`;
+            postMergerDeletedList.appendChild(li);
+        });
+        postMergerDeleted.style.display = 'block';
+    } else {
+        postMergerDeleted.style.display = 'none';
+    }
+    
+    // Show skipped rows
+    if (report.skipped && report.skipped.length > 0) {
+        report.skipped.forEach((skippedItem) => {
+            const li = document.createElement('li');
+            const reasonText = skippedItem.reason || 'unknown reason';
+            li.textContent = `"${skippedItem.scheme_name}" (Row ${skippedItem.row_index + 1}) - ${reasonText}`;
+            postMergerSkippedList.appendChild(li);
+        });
+        postMergerSkipped.style.display = 'block';
+    } else {
+        postMergerSkipped.style.display = 'none';
+    }
+    
+    // Show/hide report container
+    if ((report.deleted && report.deleted.length > 0) || (report.skipped && report.skipped.length > 0)) {
+        postMergerReport.style.display = 'block';
+    } else {
+        postMergerReport.style.display = 'none';
+    }
+}
 
 // Hide row preview
 function hideRowPreview() {

@@ -134,6 +134,16 @@
                     <h3>Export Ready</h3>
                     <p id="resultMessage"></p>
                 </div>
+                <div class="post-merger-report" id="postMergerReport" style="display: none;">
+                    <div class="report-section" id="postMergerDeleted" style="display: none;">
+                        <h4>✓ Auto-deleted pre-merger rows:</h4>
+                        <ul id="postMergerDeletedList"></ul>
+                    </div>
+                    <div class="report-section" id="postMergerSkipped" style="display: none;">
+                        <h4>⚠ Skipped POST MERGER rows (not processed):</h4>
+                        <ul id="postMergerSkippedList"></ul>
+                    </div>
+                </div>
                 <div class="export-section">
                     <p class="export-label">Select export format:</p>
                     <div class="export-buttons">

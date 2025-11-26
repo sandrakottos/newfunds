@@ -153,6 +153,9 @@ class handler(BaseHTTPRequestHandler):
                         self.send_error_response(400, f'Invalid column selection: {str(e)}')
                         return
 
+                # Process POST MERGER duplicates
+                df_cleaned, post_merger_report = self.process_post_merger_duplicates(df_cleaned)
+
                 # Handle row exclusion - accept list of row indices to exclude
                 exclude_rows_json = form.getvalue('exclude_row_indices', '')
                 excluded_count = 0
@@ -188,7 +191,8 @@ class handler(BaseHTTPRequestHandler):
                     'original_rows': original_rows,
                     'cleaned_rows': final_rows,
                     'removed_rows': removed_rows,
-                    'excluded_rows': excluded_count
+                    'excluded_rows': excluded_count,
+                    'post_merger_report': post_merger_report
                 }
             
             # Send response
@@ -207,6 +211,153 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
+    
+    def process_post_merger_duplicates(self, df):
+        """
+        Process POST MERGER duplicates:
+        - Find rows with "POST MERGER" in scheme name
+        - Compare with row above on Fund Manager and %_of_Net_Asset_10
+        - Delete pre-merger row if both match
+        - Track deleted/kept/skipped rows
+        
+        Returns:
+        - cleaned_df: DataFrame with duplicates removed
+        - report: dict with deleted, kept, and skipped rows info
+        """
+        report = {
+            'deleted': [],
+            'kept': [],
+            'skipped': []
+        }
+        
+        # Check if required columns exist
+        scheme_name_col = None
+        fund_manager_col = None
+        net_asset_col = None
+        
+        # Find column names (case-insensitive, handle variations)
+        for col in df.columns:
+            col_lower = str(col).lower()
+            if 'scheme name' in col_lower or 'schemename' in col_lower:
+                scheme_name_col = col
+            elif 'fund manager' in col_lower or 'fundmanager' in col_lower:
+                fund_manager_col = col
+            elif '%_of_net_asset_10' in col_lower or '% of net asset' in col_lower:
+                net_asset_col = col
+        
+        # If required columns don't exist, return original dataframe
+        if not scheme_name_col:
+            return df, report
+        
+        # If comparison columns don't exist, we can still detect POST MERGER but can't match
+        can_match = fund_manager_col and net_asset_col
+        
+        # Find POST MERGER rows
+        post_merger_indices = []
+        for idx, row in df.iterrows():
+            scheme_name = str(row[scheme_name_col]) if pd.notna(row[scheme_name_col]) else ''
+            if 'post merger' in scheme_name.lower():
+                post_merger_indices.append(idx)
+        
+        # Process each POST MERGER row (from bottom to top to avoid index shifting issues)
+        rows_to_delete = set()
+        
+        # Sort indices in reverse order (bottom to top)
+        post_merger_indices_sorted = sorted(post_merger_indices, reverse=True)
+        
+        for post_merger_idx in post_merger_indices_sorted:
+            post_merger_row = df.iloc[post_merger_idx]
+            scheme_name = str(post_merger_row[scheme_name_col]) if pd.notna(post_merger_row[scheme_name_col]) else ''
+            
+            # Check if row above exists
+            if post_merger_idx == 0:
+                report['skipped'].append({
+                    'row_index': int(post_merger_idx),
+                    'scheme_name': scheme_name,
+                    'reason': 'no row above'
+                })
+                continue
+            
+            # Get row above
+            row_above_idx = post_merger_idx - 1
+            
+            # Check if row above is also POST MERGER
+            row_above_scheme = str(df.iloc[row_above_idx][scheme_name_col]) if pd.notna(df.iloc[row_above_idx][scheme_name_col]) else ''
+            if 'post merger' in row_above_scheme.lower():
+                report['skipped'].append({
+                    'row_index': int(post_merger_idx),
+                    'scheme_name': scheme_name,
+                    'reason': 'row above is also POST MERGER'
+                })
+                continue
+            
+            # If we can't match (missing columns), skip
+            if not can_match:
+                report['skipped'].append({
+                    'row_index': int(post_merger_idx),
+                    'scheme_name': scheme_name,
+                    'reason': 'missing comparison columns'
+                })
+                continue
+            
+            # Get comparison values
+            post_merger_fund_manager = str(post_merger_row[fund_manager_col]).strip() if pd.notna(post_merger_row[fund_manager_col]) else ''
+            post_merger_net_asset = post_merger_row[net_asset_col] if pd.notna(post_merger_row[net_asset_col]) else None
+            
+            row_above = df.iloc[row_above_idx]
+            row_above_fund_manager = str(row_above[fund_manager_col]).strip() if pd.notna(row_above[fund_manager_col]) else ''
+            row_above_net_asset = row_above[net_asset_col] if pd.notna(row_above[net_asset_col]) else None
+            
+            # Check for missing values
+            if not post_merger_fund_manager or post_merger_net_asset is None:
+                report['skipped'].append({
+                    'row_index': int(post_merger_idx),
+                    'scheme_name': scheme_name,
+                    'reason': 'missing Fund Manager data' if not post_merger_fund_manager else 'missing %_of_Net_Asset_10 data'
+                })
+                continue
+            
+            if not row_above_fund_manager or row_above_net_asset is None:
+                report['skipped'].append({
+                    'row_index': int(post_merger_idx),
+                    'scheme_name': scheme_name,
+                    'reason': 'row above missing Fund Manager data' if not row_above_fund_manager else 'row above missing %_of_Net_Asset_10 data'
+                })
+                continue
+            
+            # Compare Fund Manager (case-insensitive)
+            fund_manager_match = post_merger_fund_manager.lower() == row_above_fund_manager.lower()
+            
+            # Compare %_of_Net_Asset_10 (numeric, handle float comparison)
+            try:
+                # Convert to float, handle percentage signs
+                pm_net_asset_val = float(str(post_merger_net_asset).replace('%', '').strip())
+                ra_net_asset_val = float(str(row_above_net_asset).replace('%', '').strip())
+                net_asset_match = abs(pm_net_asset_val - ra_net_asset_val) < 0.01  # Small tolerance for floating point
+            except (ValueError, TypeError):
+                net_asset_match = False
+            
+            # If both match, mark row above for deletion
+            if fund_manager_match and net_asset_match:
+                # Safety check: don't delete if row above is already marked or is a POST MERGER row
+                if row_above_idx not in rows_to_delete and row_above_idx not in post_merger_indices:
+                    rows_to_delete.add(row_above_idx)
+                    report['deleted'].append({
+                        'row_index': int(row_above_idx),
+                        'scheme_name': row_above_scheme
+                    })
+                    report['kept'].append({
+                        'row_index': int(post_merger_idx),
+                        'scheme_name': scheme_name
+                    })
+        
+        # Remove duplicate rows
+        if rows_to_delete:
+            df_cleaned = df[~df.index.isin(rows_to_delete)].reset_index(drop=True)
+        else:
+            df_cleaned = df.copy()
+        
+        return df_cleaned, report
     
     def clean_dataframe(self, df):
         """
