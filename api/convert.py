@@ -103,6 +103,39 @@ class handler(BaseHTTPRequestHandler):
                     'columns': columns,
                     'total_rows': cleaned_rows
                 }
+            elif action == 'get_bottom_rows':
+                # Get bottom rows for exclusion preview
+                selected_columns_json = form.getvalue('columns', '')
+                
+                if selected_columns_json:
+                    try:
+                        selected_columns = json.loads(selected_columns_json)
+                        # Filter to only selected columns
+                        df_cleaned = df_cleaned[selected_columns]
+                    except Exception as e:
+                        self.send_error_response(400, f'Invalid column selection: {str(e)}')
+                        return
+                
+                # Get last 30 rows (or all if less than 30)
+                num_rows_to_show = min(30, len(df_cleaned))
+                bottom_rows_df = df_cleaned.tail(num_rows_to_show)
+                
+                # Convert to list format with row indices
+                bottom_rows_data = []
+                for idx, row in bottom_rows_df.iterrows():
+                    row_data = {
+                        'index': int(idx),  # Original dataframe index
+                        'display_index': len(df_cleaned) - num_rows_to_show + len(bottom_rows_data),  # Display position from bottom
+                        'values': [str(val) if pd.notna(val) else '' for val in row]
+                    }
+                    bottom_rows_data.append(row_data)
+                
+                response = {
+                    'success': True,
+                    'rows': bottom_rows_data,
+                    'total_rows': len(df_cleaned),
+                    'columns': df_cleaned.columns.tolist()
+                }
             else:
                 # Convert with selected columns
                 selected_columns_json = form.getvalue('columns', '')
@@ -116,15 +149,22 @@ class handler(BaseHTTPRequestHandler):
                         self.send_error_response(400, f'Invalid column selection: {str(e)}')
                         return
 
-                # Handle row exclusion from bottom
-                exclude_rows = int(form.getvalue('exclude_rows', '0'))
-                if exclude_rows > 0:
-                    # Exclude rows from the bottom
-                    if exclude_rows >= len(df_cleaned):
-                        # If excluding all rows, return empty dataframe
-                        df_cleaned = df_cleaned.iloc[0:0]
-                    else:
-                        df_cleaned = df_cleaned.iloc[:-exclude_rows]
+                # Handle row exclusion - accept list of row indices to exclude
+                exclude_rows_json = form.getvalue('exclude_row_indices', '')
+                excluded_count = 0
+                
+                if exclude_rows_json:
+                    try:
+                        exclude_indices = json.loads(exclude_rows_json)
+                        if exclude_indices and len(exclude_indices) > 0:
+                            # Convert to set for faster lookup
+                            exclude_set = set(exclude_indices)
+                            # Filter out excluded rows
+                            df_cleaned = df_cleaned[~df_cleaned.index.isin(exclude_set)]
+                            excluded_count = len(exclude_indices)
+                    except Exception as e:
+                        self.send_error_response(400, f'Invalid row exclusion indices: {str(e)}')
+                        return
 
                 # Update final row count after exclusion
                 final_rows = len(df_cleaned)
@@ -144,7 +184,7 @@ class handler(BaseHTTPRequestHandler):
                     'original_rows': original_rows,
                     'cleaned_rows': final_rows,
                     'removed_rows': removed_rows,
-                    'excluded_rows': exclude_rows
+                    'excluded_rows': excluded_count
                 }
             
             # Send response

@@ -99,23 +99,30 @@
             <div class="row-exclusion" id="rowExclusion" style="display: none;">
                 <div class="selection-header">
                     <h2>Exclude Bottom Rows</h2>
-                    <p>Remove unwanted rows from the bottom of your data (optional)</p>
+                    <p>Select rows from the bottom to exclude from your export (optional)</p>
+                    <div class="selection-controls">
+                        <button class="btn-secondary" id="selectAllRowsBtn">Select All</button>
+                        <button class="btn-secondary" id="deselectAllRowsBtn">Deselect All</button>
+                    </div>
                 </div>
 
-                <div class="exclusion-controls">
-                    <div class="exclusion-input-group">
-                        <label for="excludeRowsInput">Number of rows to exclude from bottom:</label>
-                        <input type="number" id="excludeRowsInput" min="0" max="1000" value="0" step="1">
-                        <span class="exclusion-info" id="exclusionInfo">0 rows will be excluded</span>
-                    </div>
-                    <div class="exclusion-preview">
-                        <p class="preview-text" id="previewText">Preview: 0 rows total → 0 rows after exclusion</p>
-                    </div>
+                <div class="preview-table-wrapper">
+                    <table class="preview-table" id="exclusionTable">
+                        <thead>
+                            <tr id="exclusionTableHead">
+                            </tr>
+                        </thead>
+                        <tbody id="exclusionTableBody">
+                        </tbody>
+                    </table>
                 </div>
 
                 <div class="selection-footer">
-                    <button class="btn-secondary" id="backToColumnsBtn">Back to Columns</button>
-                    <button class="btn-primary" id="generateExportBtn">Generate Export</button>
+                    <p id="excludedRowsCount" class="count-text">0 rows selected for exclusion</p>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn-secondary" id="backToColumnsBtn">Back to Columns</button>
+                        <button class="btn-primary" id="generateExportBtn">Generate Export</button>
+                    </div>
                 </div>
             </div>
 

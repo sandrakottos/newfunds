@@ -3,8 +3,8 @@ let convertedCsvData = null;
 let convertedJsonData = null;
 let availableColumns = [];
 let selectedHeaderRow = 0;
-let totalRowsAfterCleaning = 0;
-let rowsToExclude = 0;
+let bottomRowsData = [];
+let excludedRowIndices = new Set();
 
 // Get DOM elements
 const uploadArea = document.getElementById('uploadArea');
@@ -27,9 +27,12 @@ const deselectAllBtn = document.getElementById('deselectAllBtn');
 const selectedCount = document.getElementById('selectedCount');
 const proceedBtn = document.getElementById('proceedBtn');
 const rowExclusion = document.getElementById('rowExclusion');
-const excludeRowsInput = document.getElementById('excludeRowsInput');
-const exclusionInfo = document.getElementById('exclusionInfo');
-const previewText = document.getElementById('previewText');
+const exclusionTable = document.getElementById('exclusionTable');
+const exclusionTableHead = document.getElementById('exclusionTableHead');
+const exclusionTableBody = document.getElementById('exclusionTableBody');
+const excludedRowsCount = document.getElementById('excludedRowsCount');
+const selectAllRowsBtn = document.getElementById('selectAllRowsBtn');
+const deselectAllRowsBtn = document.getElementById('deselectAllRowsBtn');
 const backToColumnsBtn = document.getElementById('backToColumnsBtn');
 const generateExportBtn = document.getElementById('generateExportBtn');
 const result = document.getElementById('result');
@@ -408,8 +411,9 @@ proceedBtn.addEventListener('click', async () => {
     try {
         const formData = new FormData();
         formData.append('file', selectedFile);
-        formData.append('action', 'get_headers');
+        formData.append('action', 'get_bottom_rows');
         formData.append('header_row', selectedHeaderRow);
+        formData.append('columns', JSON.stringify(selectedColumns));
 
         const response = await fetch('/api/convert', {
             method: 'POST',
@@ -431,7 +435,7 @@ proceedBtn.addEventListener('click', async () => {
         const data = contentType.includes('application/json') ? await response.json() : JSON.parse(await response.text());
 
         loading.style.display = 'none';
-        showRowExclusion(data.total_rows);
+        showRowExclusion(data.rows, data.columns, data.total_rows);
 
     } catch (err) {
         loading.style.display = 'none';
@@ -525,26 +529,113 @@ function hideRowExclusion() {
 }
 
 // Show row exclusion UI
-function showRowExclusion(totalRows) {
-    totalRowsAfterCleaning = totalRows;
-    rowsToExclude = 0;
-    excludeRowsInput.value = 0;
-    updateExclusionPreview();
+function showRowExclusion(rows, columns, totalRows) {
+    bottomRowsData = rows;
+    excludedRowIndices.clear();
+    
+    // Clear table
+    exclusionTableBody.innerHTML = '';
+    exclusionTableHead.innerHTML = '';
+    
+    // Build table header
+    const headerRow = document.createElement('tr');
+    headerRow.appendChild(document.createElement('th')); // Checkbox column
+    headerRow.appendChild(document.createElement('th')); // Row # column
+    
+    // Add column headers
+    columns.forEach((col, idx) => {
+        const th = document.createElement('th');
+        th.textContent = col;
+        headerRow.appendChild(th);
+    });
+    
+    exclusionTableHead.appendChild(headerRow);
+    
+    // Build table body with rows (displayed in reverse order - bottom rows first)
+    const reversedRows = [...rows].reverse();
+    
+    reversedRows.forEach((rowData) => {
+        const tr = document.createElement('tr');
+        tr.className = 'preview-row';
+        tr.dataset.rowIndex = rowData.index;
+        
+        // Checkbox cell
+        const checkboxCell = document.createElement('td');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `exclude-row-${rowData.index}`;
+        checkbox.value = rowData.index;
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                excludedRowIndices.add(rowData.index);
+            } else {
+                excludedRowIndices.delete(rowData.index);
+            }
+            updateExcludedRowsCount();
+        });
+        checkboxCell.appendChild(checkbox);
+        tr.appendChild(checkboxCell);
+        
+        // Row number cell (show position from bottom)
+        const rowNumCell = document.createElement('td');
+        rowNumCell.className = 'row-number';
+        rowNumCell.textContent = `Row ${rowData.display_index + 1}`;
+        tr.appendChild(rowNumCell);
+        
+        // Data cells
+        rowData.values.forEach((value) => {
+            const td = document.createElement('td');
+            const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+            td.textContent = displayValue || '(empty)';
+            td.title = value; // Show full value on hover
+            tr.appendChild(td);
+        });
+        
+        // Make row clickable to toggle checkbox
+        tr.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        exclusionTableBody.appendChild(tr);
+    });
+    
+    updateExcludedRowsCount();
     rowExclusion.style.display = 'block';
 }
 
-// Update exclusion preview text
-function updateExclusionPreview() {
-    const remainingRows = Math.max(0, totalRowsAfterCleaning - rowsToExclude);
-    exclusionInfo.textContent = `${rowsToExclude} rows will be excluded`;
-    previewText.textContent = `Preview: ${totalRowsAfterCleaning} rows total → ${remainingRows} rows after exclusion`;
+// Update excluded rows count
+function updateExcludedRowsCount() {
+    const count = excludedRowIndices.size;
+    if (count === 0) {
+        excludedRowsCount.textContent = '0 rows selected for exclusion';
+    } else if (count === 1) {
+        excludedRowsCount.textContent = '1 row selected for exclusion';
+    } else {
+        excludedRowsCount.textContent = `${count} rows selected for exclusion`;
+    }
 }
 
-// Handle exclude rows input change
-excludeRowsInput.addEventListener('input', (e) => {
-    rowsToExclude = Math.max(0, Math.min(parseInt(e.target.value) || 0, totalRowsAfterCleaning));
-    e.target.value = rowsToExclude;
-    updateExclusionPreview();
+// Select all rows button handler
+selectAllRowsBtn.addEventListener('click', () => {
+    const checkboxes = exclusionTableBody.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = true;
+        excludedRowIndices.add(parseInt(cb.value));
+    });
+    updateExcludedRowsCount();
+});
+
+// Deselect all rows button handler
+deselectAllRowsBtn.addEventListener('click', () => {
+    const checkboxes = exclusionTableBody.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+    });
+    excludedRowIndices.clear();
+    updateExcludedRowsCount();
 });
 
 // Back to columns button handler
@@ -565,7 +656,7 @@ generateExportBtn.addEventListener('click', async () => {
         formData.append('action', 'convert');
         formData.append('columns', JSON.stringify(availableColumns));
         formData.append('header_row', selectedHeaderRow);
-        formData.append('exclude_rows', rowsToExclude.toString());
+        formData.append('exclude_row_indices', JSON.stringify(Array.from(excludedRowIndices)));
 
         const response = await fetch('/api/convert', {
             method: 'POST',
@@ -593,9 +684,10 @@ generateExportBtn.addEventListener('click', async () => {
         const originalRows = data.original_rows || 'N/A';
         const cleanedRows = data.cleaned_rows || 'N/A';
         const removedRows = data.removed_rows || 'N/A';
+        const excludedRows = data.excluded_rows || 0;
         const columnsIncluded = availableColumns.length;
 
-        resultMessage.textContent = `${cleanedRows} rows × ${columnsIncluded} columns | Removed ${removedRows} rows${rowsToExclude > 0 ? ` | Excluded ${rowsToExclude} bottom rows` : ''}`;
+        resultMessage.textContent = `${cleanedRows} rows × ${columnsIncluded} columns | Removed ${removedRows} rows${excludedRows > 0 ? ` | Excluded ${excludedRows} rows` : ''}`;
 
     } catch (err) {
         loading.style.display = 'none';
