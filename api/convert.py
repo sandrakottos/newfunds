@@ -218,7 +218,8 @@ class handler(BaseHTTPRequestHandler):
                     'Corpus (In crs.)',
                     'Expense Ratio (Current)',
                     'Portfolio Turnover Ratio',
-                    '%_of_Net_Asset_10(Scheme Portfolio)'
+                    '%_of_Net_Asset_10(Scheme Portfolio)',
+                    'Downside Capture Ratio'
                 ]
                 
                 # Find matching columns (case-insensitive, handle variations and whitespace)
